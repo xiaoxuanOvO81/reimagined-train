@@ -19,9 +19,28 @@
             font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif;
             background: #06060f;
         }
+        .birthday-text{
+            position: fixed;
+            bottom: 10vh;
+            width:100%;
+            text-align:center;
+            font-size: clamp(26px,7vw,44px);
+            color: #ffdd77;
+            font-weight:bold;
+            z-index:10;
+            pointer-events:none;
+            text-shadow: 0 0 14px #ffaa33,0 0 28px #ff8822;
+            opacity:0;
+            transition: opacity 1.4s ease;
+        }
+        .birthday-text.show{
+            opacity:1;
+        }
     </style>
 </head>
 <body>
+    <div class="birthday-text" id="birthText">祝偏执生日快乐</div>
+
     <script type="importmap">
         {
             "imports": {
@@ -49,7 +68,7 @@
         function showBirthText(){
             birthTextDom.classList.add("show");
         }
-      
+
         // ========== Three.js 核心 ==========
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x06060f);
@@ -792,7 +811,7 @@
                     scanRingSecondary = null;
                     controls.autoRotate = true;
                     bloomPass.strength = 0.7;
-                    console.log("星辰");
+                    console.log("小轩");
                 }
             } else if (animPhase === ANIM_PHASE.DONE) {
                 updateParticlePositions(currentTimeSec);
@@ -818,7 +837,7 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        console.log("星辰制作");
+        console.log("小轩出品");
     </script>
 </body>
 </html>
