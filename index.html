@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>3D粒子蛋糕 · 星辰</title>
+    <title>祝偏执生日快乐，身体健康，万事顺遂</title>
     <style>
         body {
             margin: 0;
@@ -51,11 +51,35 @@
         const birthTextDom = document.getElementById("birthText");
         let animStarted = false;
         let animStartTs = 0;
-        let bgAudio = null;
+
+        // ========== Web Audio（AudioContext）代替普通Audio ==========
+        let audioCtx = null;
+        let audioBuffer = null;
+        let audioSource = null;
         const AUDIO_VOLUME = 0.75;
-        const AUDIO_LOOP = false;
-        // ✅同域相对路径！！mp3必须和index.html放在仓库同一级
         const AUDIO_SRC = "./1792042036066.mp3";
+
+        async function initAndPlayAudio(){
+            if(audioCtx) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            try{
+                const res = await fetch(AUDIO_SRC);
+                const arrBuf = await res.arrayBuffer();
+                audioBuffer = await audioCtx.decodeAudioData(arrBuf);
+                audioSource = audioCtx.createBufferSource();
+                audioSource.buffer = audioBuffer;
+                audioSource.loop = false;
+                const gain = audioCtx.createGain();
+                gain.gain.value = AUDIO_VOLUME;
+                audioSource.connect(gain);
+                gain.connect(audioCtx.destination);
+                audioSource.start(0);
+                console.log("✅AudioContext播放成功");
+            }catch(e){
+                console.error("❌AudioContext失败",e);
+                alert("🔇音频未能播放，可再点一次画面重试");
+            }
+        }
 
         function showBirthText(){
             birthTextDom.classList.add("show");
@@ -209,8 +233,7 @@
         let particleSystem = null;
         let cakePositions = [];
         let scatterPositions = [];
-        let particleActivated = [];
-        let particleActivationTime = [];
+        let particleDelay = [];      // ✅新增：每个粒子【多久之后才开始动】0～2.2s随机
         let particleSettleDuration = [];
 
         function addDiskPoints(count, y, rMin, rMax, biasCenter = 0.3) {
@@ -406,12 +429,8 @@
                 initPosArray[i * 3] = scatterPositions[i][0];
                 initPosArray[i * 3 + 1] = scatterPositions[i][1];
                 initPosArray[i * 3 + 2] = scatterPositions[i][2];
-            }
-            particleActivated = new Array(PARTICLE_COUNT).fill(false);
-            particleActivationTime = new Array(PARTICLE_COUNT).fill(0);
-            particleSettleDuration = new Array(PARTICLE_COUNT).fill(0);
-            for (let i = 0; i < PARTICLE_COUNT; i++) {
-                particleSettleDuration[i] = 1.8 + Math.random() * 2.0;
+                particleDelay[i] = Math.random() * 2.2;       // ✅随机启动延迟：0～2.2秒
+                particleSettleDuration[i] = 2.0 + Math.random() * 2.6; // ✅运动时长再拉长一点
             }
             const geometry = new THREE.BufferGeometry();
             geometry.setAttribute('position', new THREE.BufferAttribute(initPosArray, 3));
@@ -432,29 +451,8 @@
         async function startAnim(){
             if(animStarted) return;
             animStarted = true;
-            animStartTs = performance.now();
-
-            bgAudio = new Audio();
-            // 同域资源不需要crossOrigin！
-            bgAudio.src = AUDIO_SRC;
-            bgAudio.volume = AUDIO_VOLUME;
-            bgAudio.loop = AUDIO_LOOP;
-
-            bgAudio.addEventListener('canplay',()=>console.log("✅音频可以播放"));
-            bgAudio.addEventListener('error',(e)=>console.error("❌音频加载失败",e));
-
-            try{
-                await bgAudio.play();
-                console.log("✅播放成功");
-            }catch(err){
-                console.log("❌播放被拦截：",err);
-                alert("🔇浏览器安全限制，请**再点一次画面**播放音乐");
-            }
-
-            for(let i=0;i<PARTICLE_COUNT;i++){
-                particleActivated[i] = true;
-                particleActivationTime[i] = 0;
-            }
+            animStartTs = performance.now() / 1000;
+            initAndPlayAudio(); // ✅点击里初始化WebAudio
         }
 
         const posAttr = particleSystem.geometry.attributes.position;
@@ -464,14 +462,17 @@
             requestAnimationFrame(loop);
             controls.update();
             if(animStarted){
-                const dt = (time - animStartTs)/1000;
+                const now = time / 1000;
+                const totalElapsed = now - animStartTs;
                 let allDone = true;
                 for(let i=0;i<PARTICLE_COUNT;i++){
-                    if(!particleActivated[i]) continue;
-                    if(particleActivationTime[i]===0) particleActivationTime[i]=dt;
-                    const t0 = dt - particleActivationTime[i];
+                    if(totalElapsed < particleDelay[i]){
+                        // 还没到该粒子的启动时间，保持原位不动
+                        continue;
+                    }
+                    const t0 = totalElapsed - particleDelay[i];
                     const dur = particleSettleDuration[i];
-                    let p = Math.min(1, t0/dur);
+                    let p = Math.min(1, t0 / dur);
                     p = elasticEaseOut(p);
                     const sx = scatterPositions[i][0];
                     const sy = scatterPositions[i][1];
@@ -482,7 +483,7 @@
                     posArr[i*3]   = sx + (cx-sx)*p;
                     posArr[i*3+1] = sy + (cy-sy)*p;
                     posArr[i*3+2] = sz + (cz-sz)*p;
-                    if(p<1) allDone=false;
+                    if(p < 1) allDone = false;
                 }
                 posAttr.needsUpdate = true;
                 if(allDone){
