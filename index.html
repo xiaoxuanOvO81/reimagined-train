@@ -48,10 +48,11 @@
         import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-        // ========== MP3音频（已填好jsDelivr加速地址） ==========
+        // ========== MP3音频 ==========
         let bgAudio = null;
         let audioReady = false;
-        const AUDIO_SRC = "https://cdn.jsdelivr.net/gh/xiaoxuanOvO81/reimagined-train@main/1792042036066.mp3";
+        // 加?v=1强制绕过cdn旧缓存
+        const AUDIO_SRC = "https://cdn.jsdelivr.net/gh/xiaoxuanOvO81/reimagined-train@main/1792042036066.mp3?v=1";
         const AUDIO_VOLUME = 0.75;
         const AUDIO_LOOP = false;
 
@@ -63,7 +64,10 @@
         }
         function playBgm(){
             if(!audioReady) initAudio();
-            bgAudio.play().catch(e=>console.log("音频播放限制",e));
+            bgAudio.play().catch(e=>{
+                console.log("音频播放限制：",e);
+                alert("如无声音，请再次点击画面");
+            });
         }
 
         const birthTextDom = document.getElementById("birthText");
@@ -73,7 +77,7 @@
             birthTextDom.classList.add("show");
         }
 
-        // ========== Three.js 蛋糕原版全部逻辑 ==========
+        // ========== Three.js 蛋糕逻辑 ==========
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x06060f);
         scene.fog = new THREE.FogExp2(0x06060f, 0.0022);
@@ -446,14 +450,13 @@
             animStarted = true;
             animStartTs = performance.now();
             playBgm();
+            // ✅修复：用正确变量名 particleActivated
             for(let i=0;i<PARTICLE_COUNT;i++){
-                activated[i] = true;
-                activateTime[i] = 0;
+                particleActivated[i] = true;
+                particleActivationTime[i] = 0;
             }
         }
 
-        let activated = new Array(PARTICLE_COUNT).fill(false);
-        let activateTime = new Array(PARTICLE_COUNT).fill(0);
         const posAttr = particleSystem.geometry.attributes.position;
         const posArr = posAttr.array;
 
@@ -464,9 +467,9 @@
                 const dt = (time - animStartTs)/1000;
                 let allDone = true;
                 for(let i=0;i<PARTICLE_COUNT;i++){
-                    if(!activated[i]) continue;
-                    if(activateTime[i]===0) activateTime[i]=dt;
-                    const t0 = dt - activateTime[i];
+                    if(!particleActivated[i]) continue;
+                    if(particleActivationTime[i]===0) particleActivationTime[i]=dt;
+                    const t0 = dt - particleActivationTime[i];
                     const dur = particleSettleDuration[i];
                     let p = Math.min(1, t0/dur);
                     p = elasticEaseOut(p);
