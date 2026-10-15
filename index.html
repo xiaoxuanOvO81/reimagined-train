@@ -16,31 +16,12 @@
         body {
             margin: 0;
             overflow: hidden;
-            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif;
             background: #06060f;
-        }
-        .birthday-text{
-            position: fixed;
-            bottom: 10vh;
-            width:100%;
-            text-align:center;
-            font-size: clamp(26px,7vw,44px);
-            color: #ffdd77;
-            font-weight:bold;
-            z-index:10;
-            pointer-events:none;
-            text-shadow: 0 0 14px #ffaa33,0 0 28px #ff8822;
-            opacity:0;
-            transition: opacity 1.4s ease;
-        }
-        .birthday-text.show{
-            opacity:1;
         }
     </style>
 </head>
 <body>
-    <div class="birthday-text" id="birthText">祝偏执生日快乐</div>
-
     <script type="importmap">
         {
             "imports": {
@@ -68,14 +49,7 @@
         function showBirthText(){
             birthTextDom.classList.add("show");
         }
-
-    <script type="module">
-        import * as THREE from 'three';
-        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-
+      
         // ========== Three.js 核心 ==========
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x06060f);
