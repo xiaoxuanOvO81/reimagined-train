@@ -213,12 +213,12 @@
             if(animStarted){
                 const nowSec = timeMs / 1000 - startTime;
                 // 蓝圈非常缓慢上升，总时长 12秒
-                const ringTotalTime = 12.0;
+                const ringTotalTime = 9.0;
                 const ringY = -0.75 + Math.min(1.0, nowSec / ringTotalTime) * 2.55;
                 guideRingGroup.position.y = ringY;
 
                 // 每个粒子：到了自己的延迟才开始非常慢地向目标汇聚
-                const flyDuration = 3.8; // 每个粒子自身飞行时长，值越大越慢
+                const flyDuration = 2.7; // 每个粒子自身飞行时长，值越大越慢
                 for(let i=0;i<PARTICLE_COUNT;i++){
                     const d = moveDelay[i];
                     if(nowSec < d){
