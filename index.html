@@ -2,9 +2,10 @@
 <html lang="zh-CN">
 <!-- 
   署名：X小轩X
-  作品名称：祝偏执生日快乐，身体健康，万事顺遂
+  作品名称：偏执生日快乐
   作品介绍：基于Three.js打造的3D粒子特效生日蛋糕，包含动态粒子聚合、流光粒子环、流星特效、Bloom光效等视觉效果，
-           点击/触摸触发粒子聚合动画，伴随背景音乐播放，适配移动端与桌面端，打造沉浸式生日祝福体验
+           点击/触摸触发粒子聚合动画，伴随背景音乐播放，适配移动端与桌面端，打造沉浸式生日祝福体验。
+  技术栈：Three.js、WebGL、HTML5、JavaScript
   【注释】代码基本分段打上了注释/如果有看不懂的可以百度
 -->
 <head>
@@ -15,7 +16,7 @@
         body {
             margin: 0;
             overflow: hidden;
-            font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
             background: #06060f;
         }
         .birthday-text{
@@ -55,40 +56,42 @@
         import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-        // ========== 音频配置（Github Pages同域，mp3放在仓库根目录） ==========
         const birthTextDom = document.getElementById("birthText");
+        let animStarted = false;
+        let animStartTs = 0;
         let bgAudio = null;
         const AUDIO_VOLUME = 0.75;
         const AUDIO_LOOP = false;
-        // 同域相对路径，不要填cdn！上传到github pages自动解析
+        // ✅同域相对路径！！mp3必须和index.html放在仓库同一级
         const AUDIO_SRC = "./1792042036066.mp3";
 
         function showBirthText(){
             birthTextDom.classList.add("show");
         }
-        function playAudio(){
-            bgAudio = new Audio(AUDIO_SRC);
-            bgAudio.volume = AUDIO_VOLUME;
-            bgAudio.loop = AUDIO_LOOP;
-            bgAudio.play().catch(err=>{
-                console.log("音频播放被浏览器限制",err);
-                alert("🔇音频未播放，请再次点击画面");
-            });
-        }
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
         // ========== Three.js 核心 ==========
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x06060f);
         scene.fog = new THREE.FogExp2(0x06060f, 0.0022);
+
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(3.2, 2.4, 5.2);
         camera.lookAt(0, 1.2, 0);
+
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.toneMapping = THREE.ReinhardToneMapping;
         renderer.toneMappingExposure = 1.0;
         document.body.appendChild(renderer.domElement);
+
         // 后期 Bloom 光效
         const renderScene = new RenderPass(scene, camera);
         const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.7, 0.25, 0.15);
@@ -98,6 +101,7 @@
         const effectComposer = new EffectComposer(renderer);
         effectComposer.addPass(renderScene);
         effectComposer.addPass(bloomPass);
+
         // 轨道控制
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
@@ -108,6 +112,7 @@
         controls.zoomSpeed = 1.2;
         controls.rotateSpeed = 1.2;
         controls.target.set(0, 1.2, 0);
+
         // 灯光系统
         const ambientLight = new THREE.AmbientLight(0x111122, 0.08);
         scene.add(ambientLight);
@@ -120,6 +125,7 @@
         const topHighlight = new THREE.PointLight(0xaaccff, 0.05);
         topHighlight.position.set(0, 2.0, 0.3);
         scene.add(topHighlight);
+
         // 背景星空粒子
         const starCount = 2000;
         const starGeo = new THREE.BufferGeometry();
@@ -133,6 +139,7 @@
         const starMat = new THREE.PointsMaterial({ color: 0xaaccff, size: 0.07, transparent: true, opacity: 0.4 });
         const stars = new THREE.Points(starGeo, starMat);
         scene.add(stars);
+
         // ========== 外圈流光粒子环 ==========
         const ringParticleCount = 1800;
         const ringGeo = new THREE.BufferGeometry();
@@ -160,6 +167,7 @@
         });
         const ringParticles = new THREE.Points(ringGeo, ringMat);
         scene.add(ringParticles);
+
         // ========== 背景氛围光环 ==========
         const ambientRingGeo = new THREE.TorusGeometry(1.75, 0.015, 16, 120);
         const ambientRingMat = new THREE.MeshBasicMaterial({
@@ -173,6 +181,7 @@
         ambientRing.rotation.x = Math.PI / 2;
         ambientRing.position.y = 0.5;
         scene.add(ambientRing);
+
         const ambientRing2Geo = new THREE.TorusGeometry(2.0, 0.01, 12, 100);
         const ambientRing2Mat = new THREE.MeshBasicMaterial({
             color: 0x553366,
@@ -186,6 +195,7 @@
         ambientRing2.rotation.z = 0.3;
         ambientRing2.position.y = 0.3;
         scene.add(ambientRing2);
+
         // ========== 流星系统 ==========
         const shootingStars = [];
         const STAR_COUNT = 8;
@@ -232,6 +242,7 @@
                 positionsArray
             });
         }
+
         // ========== 粒子系统核心 ==========
         const PARTICLE_COUNT = 9800;
         let particleSystem = null;
@@ -240,6 +251,7 @@
         let particleActivated = [];
         let particleActivationTime = [];
         let particleSettleDuration = [];
+
         function addDiskPoints(count, y, rMin, rMax, biasCenter = 0.3) {
             const pts = [];
             for (let i = 0; i < count; i++) {
@@ -256,6 +268,7 @@
             }
             return pts;
         }
+
         function addSolidBase(count, yStart, yEnd, rMin, rMax) {
             const pts = [];
             for (let i = 0; i < count; i++) {
@@ -273,6 +286,7 @@
             }
             return pts;
         }
+
         function generateCakePositions() {
             const positions = [];
             const bottomRMin = 0.96, bottomRMax = 1.14;
@@ -284,6 +298,7 @@
             const candleR = 0.11;
             const candleY0 = 0.98, candleY1 = 1.50;
             const flameYCenter = 1.54;
+
             function addCylinderPoints(count, yMin, yMax, rMin, rMax, surfaceBias = 0.65) {
                 const pts = [];
                 for (let i = 0; i < count; i++) {
@@ -301,6 +316,7 @@
                 }
                 return pts;
             }
+
             const bottomCnt = Math.floor(PARTICLE_COUNT * 0.18);
             const midCnt = Math.floor(PARTICLE_COUNT * 0.14);
             const topCnt = Math.floor(PARTICLE_COUNT * 0.10);
@@ -314,6 +330,7 @@
             let decorCnt = PARTICLE_COUNT - bottomCnt - midCnt - topCnt - candleCnt - solidBaseCnt -
                 bottomDiskCnt - bottomTopDiskCnt - midTopDiskCnt - topTopDiskCnt - candleTopDiskCnt;
             if (decorCnt < 0) decorCnt = 280;
+
             const bottomPts = addCylinderPoints(bottomCnt, bottomY0, bottomY1, bottomRMin, bottomRMax, 0.65);
             const midPts = addCylinderPoints(midCnt, midY0, midY1, midRMin, midRMax, 0.65);
             const topPts = addCylinderPoints(topCnt, topY0, topY1, topRMin, topRMax, 0.7);
@@ -378,6 +395,7 @@
             const final = all.slice(0, PARTICLE_COUNT);
             return final.map(v => [v.x, v.y, v.z]);
         }
+
         function generateScatterPositions() {
             const scatters = [];
             const centerY = 0.6;
@@ -385,6 +403,7 @@
             const spiralTotalParticles = Math.floor(PARTICLE_COUNT * 0.32);
             const particlesPerArm = Math.floor(spiralTotalParticles / spiralArmCount);
             const sphereParticleCount = PARTICLE_COUNT - (particlesPerArm * spiralArmCount);
+
             for (let arm = 0; arm < spiralArmCount; arm++) {
                 const baseAngle = (arm / spiralArmCount) * Math.PI * 2;
                 for (let i = 0; i < particlesPerArm; i++) {
@@ -418,6 +437,7 @@
             }
             return scatters.slice(0, PARTICLE_COUNT);
         }
+
         function generateCakeColors(positions) {
             const colors = [];
             for (let i = 0; i < positions.length; i++) {
@@ -447,12 +467,14 @@
             }
             return colors;
         }
+
         function elasticEaseOut(t) {
             if (t <= 0) return 0;
             if (t >= 1) return 1;
             const c4 = (2 * Math.PI) / 3;
             return Math.pow(2, -10 * t) * Math.sin((t - 0.075) * c4) + 1;
         }
+
         function getScanRingRadius(y) {
             if (y < 0.18) return 1.16;
             if (y < 0.20) return 1.16 + (0.88 - 1.16) * ((y - 0.18) / 0.02);
@@ -463,22 +485,26 @@
             if (y < 1.50) return 0.13;
             return 0.07;
         }
+
         function initParticleSystem() {
             cakePositions = generateCakePositions();
             scatterPositions = generateScatterPositions();
             const initColors = generateCakeColors(cakePositions);
+
             const initPosArray = new Float32Array(PARTICLE_COUNT * 3);
             for (let i = 0; i < PARTICLE_COUNT; i++) {
                 initPosArray[i * 3] = scatterPositions[i][0];
                 initPosArray[i * 3 + 1] = scatterPositions[i][1];
                 initPosArray[i * 3 + 2] = scatterPositions[i][2];
             }
+
             particleActivated = new Array(PARTICLE_COUNT).fill(false);
             particleActivationTime = new Array(PARTICLE_COUNT).fill(0);
             particleSettleDuration = new Array(PARTICLE_COUNT).fill(0);
             for (let i = 0; i < PARTICLE_COUNT; i++) {
                 particleSettleDuration[i] = 1.8 + Math.random() * 2.0;
             }
+
             const geometry = new THREE.BufferGeometry();
             geometry.setAttribute('position', new THREE.BufferAttribute(initPosArray, 3));
             geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(initColors), 3));
@@ -492,10 +518,12 @@
             particleSystem = new THREE.Points(geometry, particleMat);
             scene.add(particleSystem);
         }
+
         let scanRingMain = null;
         let scanRingSecondary = null;
         let scanRingMainMat = null;
         let scanRingSecondaryMat = null;
+
         function createScanRings() {
             const torusGeoMain = new THREE.TorusGeometry(1, 0.025, 20, 120);
             scanRingMainMat = new THREE.MeshBasicMaterial({
@@ -509,6 +537,7 @@
             scanRingMain.rotation.x = Math.PI / 2;
             scanRingMain.visible = false;
             scene.add(scanRingMain);
+
             const torusGeoSecondary = new THREE.TorusGeometry(1, 0.018, 16, 100);
             scanRingSecondaryMat = new THREE.MeshBasicMaterial({
                 color: 0x9966ff,
@@ -522,6 +551,7 @@
             scanRingSecondary.visible = false;
             scene.add(scanRingSecondary);
         }
+
         const ANIM_PHASE = { PRE: 'pre', SCANNING: 'scanning', SETTLING: 'settling', DONE: 'done' };
         let animPhase = ANIM_PHASE.PRE;
         let animStartTime = null;
@@ -534,13 +564,17 @@
         let scanProgress = 0;
         let scanRingFadeOutStart = false;
         let scanRingFadeOutTime = 0;
+
         let particleSortedIndices = [];
+
         function preSortParticles() {
             const indexed = cakePositions.map((pos, i) => ({ idx: i, y: pos[1] }));
             indexed.sort((a, b) => a.y - b.y);
             particleSortedIndices = indexed.map(item => item.idx);
         }
+
         let lastActivatedSortedIndex = -1;
+
         function batchActivateParticles(scanY) {
             const activateThreshold = scanY + 0.06;
             while (lastActivatedSortedIndex + 1 < particleSortedIndices.length) {
@@ -557,10 +591,12 @@
                 }
             }
         }
+
         function updateParticlePositions(currentTimeSec) {
             if (!particleSystem) return;
             const posArray = particleSystem.geometry.attributes.position.array;
             let anyUpdated = false;
+
             for (let i = 0; i < PARTICLE_COUNT; i++) {
                 if (!particleActivated[i]) continue;
                 const elapsed = currentTimeSec - particleActivationTime[i];
@@ -589,10 +625,12 @@
                 posArray[i * 3 + 2] = sz + (tz - sz) * factor;
                 anyUpdated = true;
             }
+
             if (anyUpdated) {
                 particleSystem.geometry.attributes.position.needsUpdate = true;
             }
         }
+
         function allParticlesSettled(currentTimeSec) {
             for (let i = 0; i < PARTICLE_COUNT; i++) {
                 if (!particleActivated[i]) return false;
@@ -600,6 +638,7 @@
             }
             return true;
         }
+
         let bgTime = 0;
         function animateBackground() {
             bgTime += 0.012;
@@ -609,6 +648,7 @@
             ringParticles.rotation.x = Math.sin(bgTime * 0.5) * 0.1;
             ambientRing.rotation.z += 0.002;
             ambientRing2.rotation.z -= 0.0015;
+
             // 更新流星位置
             shootingStars.forEach(star => {
                 const { line, dir, speed, length, pointsCount, positionsArray } = star;
@@ -641,3 +681,170 @@
                         const t = j / (pointsCount - 1);
                         positionsArray[j * 3] = currentHead.x - dir.x * (1 - t) * length;
                         positionsArray[j * 3 + 1] = currentHead.y - dir.y * (1 - t) * length;
+                        positionsArray[j * 3 + 2] = currentHead.z - dir.z * (1 - t) * length;
+                    }
+                }
+                line.geometry.attributes.position.needsUpdate = true;
+            });
+        }
+
+        function startAnimation() {
+            if (animationStarted) return;
+            animationStarted = true;
+            animStartTime = performance.now();
+            resumeMusic();
+            lastActivatedSortedIndex = -1;
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                particleActivated[i] = false;
+                particleActivationTime[i] = 0;
+            }
+            animPhase = ANIM_PHASE.PRE;
+            scanRingMain.visible = false;
+            scanRingSecondary.visible = false;
+            ambientLight.intensity = 0.08;
+            backLight.intensity = 0.15;
+            fillLight.intensity = 0.1;
+            topHighlight.intensity = 0.05;
+            bloomPass.strength = 0.7;
+            controls.autoRotate = false;
+        }
+
+        // 用户交互触发
+        window.addEventListener('click', startAnimation);
+        window.addEventListener('touchstart', startAnimation);
+
+        initParticleSystem();
+        preSortParticles();
+        createScanRings();
+
+        function renderLoop(timestamp) {
+            requestAnimationFrame(renderLoop);
+
+            if (!animationStarted) {
+                animateBackground();
+                effectComposer.render();
+                return;
+            }
+
+            const currentTimeSec = (timestamp - animStartTime) / 1000;
+
+            if (animPhase === ANIM_PHASE.PRE) {
+                const preProgress = Math.min(currentTimeSec / SCAN_START_DELAY, 1.0);
+                const easeIn = 1 - Math.pow(1 - preProgress, 3);
+
+                ambientLight.intensity = 0.08 + (0.5 - 0.08) * easeIn;
+                backLight.intensity = 0.15 + (0.5 - 0.15) * easeIn;
+                fillLight.intensity = 0.1 + (0.35 - 0.1) * easeIn;
+                topHighlight.intensity = 0.05 + (0.25 - 0.05) * easeIn;
+
+                if (preProgress > 0.4) {
+                    const ringFadeIn = (preProgress - 0.4) / 0.6;
+                    scanRingMain.visible = true;
+                    scanRingSecondary.visible = true;
+                    scanRingMainMat.opacity = 0.85 * ringFadeIn;
+                    scanRingSecondaryMat.opacity = 0.55 * ringFadeIn;
+                    scanRingMain.position.y = SCAN_Y_START;
+                    scanRingSecondary.position.y = SCAN_Y_START - 0.06;
+                }
+
+                if (particleSystem) particleSystem.rotation.y += 0.0015;
+
+                if (currentTimeSec >= SCAN_START_DELAY) {
+                    animPhase = ANIM_PHASE.SCANNING;
+                    scanRingMain.position.y = SCAN_Y_START;
+                    scanRingSecondary.position.y = SCAN_Y_START - 0.06;
+                    scanRingMain.visible = true;
+                    scanRingSecondary.visible = true;
+                    scanRingMainMat.opacity = 0.85;
+                    scanRingSecondaryMat.opacity = 0.55;
+                    lastActivatedSortedIndex = -1;
+                    batchActivateParticles(SCAN_Y_START);
+                }
+            } else if (animPhase === ANIM_PHASE.SCANNING) {
+                const scanElapsed = currentTimeSec - SCAN_START_DELAY;
+                scanProgress = Math.min(scanElapsed / SCAN_DURATION, 1.0);
+
+                const scanY = SCAN_Y_START + scanProgress * (SCAN_Y_END - SCAN_Y_START);
+                scanRingMain.position.y = scanY;
+                scanRingSecondary.position.y = scanY - 0.07 - scanProgress * 0.04;
+
+                const mainRadius = getScanRingRadius(scanY);
+                const secondaryRadius = mainRadius * 1.06;
+                scanRingMain.scale.set(mainRadius, mainRadius, mainRadius);
+                scanRingSecondary.scale.set(secondaryRadius, secondaryRadius, secondaryRadius);
+
+                batchActivateParticles(scanY);
+                updateParticlePositions(currentTimeSec);
+
+                if (particleSystem) particleSystem.rotation.y += 0.0012;
+
+                if (scanProgress >= 1.0) {
+                    animPhase = ANIM_PHASE.SETTLING;
+                    scanRingFadeOutStart = true;
+                    scanRingFadeOutTime = currentTimeSec;
+                    for (let i = 0; i < PARTICLE_COUNT; i++) {
+                        if (!particleActivated[i]) {
+                            particleActivated[i] = true;
+                            particleActivationTime[i] = currentTimeSec;
+                        }
+                    }
+                }
+            } else if (animPhase === ANIM_PHASE.SETTLING) {
+                const fadeElapsed = currentTimeSec - scanRingFadeOutTime;
+                const fadeProgress = Math.min(fadeElapsed / SCAN_FADE_DURATION, 1.0);
+
+                if (scanRingFadeOutStart) {
+                    scanRingMainMat.opacity = 0.85 * (1 - fadeProgress);
+                    scanRingSecondaryMat.opacity = 0.55 * (1 - fadeProgress);
+                    const expandScale = 1 + fadeProgress * 2.5;
+                    const baseMR = getScanRingRadius(SCAN_Y_END);
+                    const baseSR = baseMR * 1.06;
+                    scanRingMain.scale.set(baseMR * expandScale, baseMR * expandScale, baseMR * expandScale);
+                    scanRingSecondary.scale.set(baseSR * expandScale, baseSR * expandScale, baseSR * expandScale);
+                    scanRingMain.position.y = SCAN_Y_END + fadeProgress * 0.3;
+                    scanRingSecondary.position.y = SCAN_Y_END + fadeProgress * 0.25;
+                }
+
+                updateParticlePositions(currentTimeSec);
+                if (particleSystem) particleSystem.rotation.y *= 0.995;
+
+                if (allParticlesSettled(currentTimeSec) && fadeProgress >= 0.75) {
+                    animPhase = ANIM_PHASE.DONE;
+                    scanRingMain.visible = false;
+                    scanRingSecondary.visible = false;
+                    scene.remove(scanRingMain);
+                    scene.remove(scanRingSecondary);
+                    scanRingMain = null;
+                    scanRingSecondary = null;
+                    controls.autoRotate = true;
+                    bloomPass.strength = 0.7;
+                    console.log("星辰");
+                }
+            } else if (animPhase === ANIM_PHASE.DONE) {
+                updateParticlePositions(currentTimeSec);
+            }
+
+            if (animPhase !== ANIM_PHASE.PRE) {
+                backLight.intensity = 0.5 + Math.sin(bgTime * 0.8) * 0.15;
+                topHighlight.intensity = 0.25 + Math.sin(bgTime * 1.1) * 0.1;
+            }
+
+            controls.update();
+            animateBackground();
+            effectComposer.render();
+        }
+
+        requestAnimationFrame(renderLoop);
+
+        window.addEventListener('resize', onWindowResize);
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            effectComposer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        console.log("星辰制作");
+    </script>
+</body>
+</html>
