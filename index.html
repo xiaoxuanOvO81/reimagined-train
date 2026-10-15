@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>祝偏执生日快乐，身体健康，万事顺遂</title>
+    <title>3D粒子蛋糕 · 星辰</title>
     <style>
         body {
             margin: 0;
@@ -51,17 +51,17 @@
         const birthTextDom = document.getElementById("birthText");
         let animStarted = false;
         let animStartTs = 0;
-
-        // ========== 普通HTML5 Audio，同域MP3 ==========
         let bgAudio = null;
         const AUDIO_VOLUME = 0.75;
+        const AUDIO_LOOP = false;
+        // ✅同域相对路径！！mp3必须和index.html放在仓库同一级
         const AUDIO_SRC = "./1792042036066.mp3";
 
         function showBirthText(){
             birthTextDom.classList.add("show");
         }
 
-        // ========== Three.js 场景 ==========
+        // ========== Three.js 蛋糕逻辑 ==========
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x06060f);
         scene.fog = new THREE.FogExp2(0x06060f, 0.0022);
@@ -105,7 +105,6 @@
         topHighlight.position.set(0, 2.0, 0.3);
         scene.add(topHighlight);
 
-        // 背景星空
         const starCount = 2000;
         const starGeo = new THREE.BufferGeometry();
         const starPos = [];
@@ -119,7 +118,33 @@
         const stars = new THREE.Points(starGeo, starMat);
         scene.add(stars);
 
-        // 装饰光环
+        const ringParticleCount = 1800;
+        const ringGeo = new THREE.BufferGeometry();
+        const ringPositions = [];
+        const ringColors = [];
+        for (let i = 0; i < ringParticleCount; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 1.45 + Math.random() * 0.35;
+            const y = -0.1 + Math.random() * 1.9;
+            const x = Math.cos(angle) * radius;
+            const z = Math.sin(angle) * radius;
+            ringPositions.push(x, y, z);
+            const hue = (angle + Math.random() * 0.5) % 1.0;
+            const rgb = new THREE.Color().setHSL(hue, 0.85, 0.55);
+            ringColors.push(rgb.r, rgb.g, rgb.b);
+        }
+        ringGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(ringPositions), 3));
+        ringGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(ringColors), 3));
+        const ringMat = new THREE.PointsMaterial({
+            size: 0.03,
+            vertexColors: true,
+            blending: THREE.AdditiveBlending,
+            transparent: true,
+            depthWrite: false
+        });
+        const ringParticles = new THREE.Points(ringGeo, ringMat);
+        scene.add(ringParticles);
+
         const ambientRingGeo = new THREE.TorusGeometry(1.75, 0.015, 16, 120);
         const ambientRingMat = new THREE.MeshBasicMaterial({
             color: 0x335588,
@@ -146,7 +171,6 @@
         ambientRing2.position.y = 0.3;
         scene.add(ambientRing2);
 
-        // 流星
         const shootingStars = [];
         const STAR_COUNT = 8;
         for (let i = 0; i < STAR_COUNT; i++) {
@@ -181,64 +205,13 @@
             shootingStars.push({ line, dir, speed: 0.008 + Math.random() * 0.015, length, startX, startY, startZ, pointsCount, positionsArray });
         }
 
-        // ========== 蓝色引导环 ==========
-        const guideRingGroup = new THREE.Group();
-        const guideRingGeo = new THREE.TorusGeometry(1.35, 0.025, 24, 160);
-        const guideRingMat = new THREE.MeshBasicMaterial({
-            color: 0x33bbff,
-            transparent: true,
-            opacity: 0.9,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false
-        });
-        const guideRing = new THREE.Mesh(guideRingGeo, guideRingMat);
-        guideRing.rotation.x = Math.PI / 2;
-        guideRingGroup.add(guideRing);
-
-        // 环周围蓝色粒子拖尾
-        const guideParticlesGeo = new THREE.BufferGeometry();
-        const guideParticleCount = 1200;
-        const guidePositions = new Float32Array(guideParticleCount * 3);
-        for (let i = 0; i < guideParticleCount; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const r = 1.0 + Math.random() * 0.55;
-            guidePositions[i * 3] = Math.cos(angle) * r;
-            guidePositions[i * 3 + 1] = (Math.random() - 0.5) * 0.35;
-            guidePositions[i * 3 + 2] = Math.sin(angle) * r;
-        }
-        guideParticlesGeo.setAttribute('position', new THREE.BufferAttribute(guidePositions, 3));
-        const guideParticlesMat = new THREE.PointsMaterial({
-            size: 0.045,
-            color: 0x55ccff,
-            transparent: true,
-            opacity: 0.85,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false
-        });
-        const guideParticles = new THREE.Points(guideParticlesGeo, guideParticlesMat);
-        guideRingGroup.add(guideParticles);
-
-        guideRingGroup.position.y = -0.6;
-        scene.add(guideRingGroup);
-
-        // ========== 蛋糕粒子系统 ==========
         const PARTICLE_COUNT = 9800;
         let particleSystem = null;
         let cakePositions = [];
-        let bottomScatterPositions = [];
-
-        // 每个粒子的目标高度区间，用于被蓝环逐层激活
-        let particleTargetY = [];
-        let particleState = []; // 'rising' | 'settling' | 'done'
-        let particleRiseProgress = [];
-        let particleSettleProgress = [];
-        let particleStartRiseTime = [];
-
-        // 蓝环上升参数
-        const RISE_START_Y = -0.6;
-        const RISE_END_Y = 1.55;
-        const RISE_DURATION = 7.0; // 蓝环从底到顶时间
-        const RISE_BAND = 0.35;    // 环影响范围
+        let scatterPositions = [];
+        let particleActivated = [];
+        let particleActivationTime = [];
+        let particleSettleDuration = [];
 
         function addDiskPoints(count, y, rMin, rMax, biasCenter = 0.3) {
             const pts = [];
@@ -369,24 +342,39 @@
                 ...solidBase, ...bottomDisk, ...bottomTopDisk, ...midTopDisk, ...topTopDisk, ...candleTopDisk,
                 ...decorPts
             ];
-            while (all.length < PARTICLE_COUNT) all(0, 0.8, 0));
+            while (all.length < PARTICLE_COUNT) all.push(new THREE.Vector3(0, 0.8, 0));
             return all.slice(0, PARTICLE_COUNT).map(v => [v.x, v.y, v.z]);
         }
-
-        // 底部初始散开位置：蓝圈从底部带起来
-        function generateBottomScatterPositions() {
+        function generateScatterPositions() {
             const scatters = [];
-            for (let i = 0; i < PARTICLE_COUNT; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                const r = 0.3 + Math.random() * 1.6;
-                const x = Math.cos(angle) * r;
-                const z = Math.sin(angle) * r;
-                const y = -0.55 + Math.random() * 0.25;
+            const centerY = 0.6;
+            const spiralArmCount = 4;
+            const spiralTotalParticles = Math.floor(PARTICLE_COUNT * 0.32);
+            const particlesPerArm = Math.floor(spiralTotalParticles / spiralArmCount);
+            const sphereParticleCount = PARTICLE_COUNT - (particlesPerArm * spiralArmCount);
+            for (let arm = 0; arm < spiralArmCount; arm++) {
+                const baseAngle = (arm / spiralArmCount) * Math.PI * 2;
+                for (let i = 0; i < particlesPerArm; i++) {
+                    const t = i / particlesPerArm;
+                    const angle = baseAngle + t * 3.2 * Math.PI;
+                    const r = 1.3 + t * 3.2;
+                    const y = centerY + (t - 0.45) * 3.8;
+                    const x = Math.cos(angle) * r + (Math.random() - 0.5) * 0.5;
+                    const z = Math.sin(angle) * r + (Math.random() - 0.5) * 0.35;
+                    scatters.push([x, y, z]);
+                }
+            }
+            for (let i = 0; i < sphereParticleCount; i++) {
+                const phi = Math.acos(2 * Math.random() - 1);
+                const theta = Math.random() * Math.PI * 2;
+                const r = 1.8 + Math.pow(Math.random(), 0.55) * 3.5;
+                const x = Math.sin(phi) * Math.cos(theta) * r;
+                const y = centerY + Math.sin(phi) * Math.sin(theta) * r;
+                const z = Math.cos(phi) * r;
                 scatters.push([x, y, z]);
             }
-            return scatters;
+            return scatters.slice(0, PARTICLE_COUNT);
         }
-
         function generateCakeColors(positions) {
             const colors = [];
             for (let i = 0; i < positions.length; i++) {
@@ -398,27 +386,32 @@
                 else if (y < 0.65) { r = 0.9 + Math.random() * 0.1; g = 0.65 + Math.random() * 0.18; b = 0.42 + Math.random() * 0.18; }
                 else if (y < 1.0) { r = 0.95; g = 0.75 + Math.random() * 0.15; b = 0.5 + Math.random() * 0.2; }
                 else { r = 0.95; g = 0.65 + Math.random() * 0.25; b = 0.38 + Math.random() * 0.25; }
-                if (y > 1.52) { r =  = 0.45 + Math.random() * 0.45; b = 0.18; }
+                if (y > 1.52) { r = 1.0; g = 0.45 + Math.random() * 0.45; b = 0.18; }
                 colors.push(r, g, b);
             }
             return colors;
         }
-
+        function elasticEaseOut(t) {
+            if (t <= 0) return 0;
+            if (t >= 1) return 1;
+            const c4 = (2 * Math.PI) / 3;
+            return Math.pow(2, -10 * t) * Math.sin((t - 0.075) * c4) + 1;
+        }
         function initParticleSystem() {
             cakePositions = generateCakePositions();
-            bottomScatterPositions = generateBottomScatterPositions();
+            scatterPositions = generateScatterPositions();
             const initColors = generateCakeColors(cakePositions);
             const initPosArray = new Float32Array(PARTICLE_COUNT * 3);
             for (let i = 0; i < PARTICLE_COUNT; i++) {
-                initPosArray[i * 3] = bottomScatterPositions[i][0];
-                initPosArray[i * 3 + 1] = bottomScatterPositions[i][1];
-                initPosArray[i * 3 + 2] = bottomScatterPositions[i][2];
-
-                particleTargetY[i] = cakePositions[i][1];
-                particleState[i] = 'waiting';
-                particleRiseProgress[i] = 0;
-                particleSettleProgress[i] = 0;
-                particleStartRiseTime[i] = -1;
+                initPosArray[i * 3] = scatterPositions[i][0];
+                initPosArray[i * 3 + 1] = scatterPositions[i][1];
+                initPosArray[i * 3 + 2] = scatterPositions[i][2];
+            }
+            particleActivated = new Array(PARTICLE_COUNT).fill(false);
+            particleActivationTime = new Array(PARTICLE_COUNT).fill(0);
+            particleSettleDuration = new Array(PARTICLE_COUNT).fill(0);
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                particleSettleDuration[i] = 1.8 + Math.random() * 2.0;
             }
             const geometry = new THREE.BufferGeometry();
             geometry.setAttribute('position', new THREE.BufferAttribute(initPosArray, 3));
@@ -434,142 +427,70 @@
             scene.add(particleSystem);
         }
 
-        // 预初始化粒子数组
-        for (let i = 0; i < PARTICLE_COUNT; i++) {
-            particleTargetY[i] = 0;
-            particleState[i] = 'waiting';
-            particleRiseProgress[i] = 0;
-            particleSettleProgress[i] = 0;
-            particleStartRiseTime[i] = -1;
-        }
         initParticleSystem();
 
-        // ========== 点击开始：音频 + 蓝环上升 + 粒子聚拢 ==========
         async function startAnim(){
             if(animStarted) return;
             animStarted = true;
-            animStartTs = performance.now() / 1000;
+            animStartTs = performance.now();
 
-            // 普通Audio，点击手势里播放，同域
-            bgAudio = new Audio(AUDIO_SRC);
+            bgAudio = new Audio();
+            // 同域资源不需要crossOrigin！
+            bgAudio.src = AUDIO_SRC;
             bgAudio.volume = AUDIO_VOLUME;
-            bgAudio.loop = false;
+            bgAudio.loop = AUDIO_LOOP;
+
+            bgAudio.addEventListener('canplay',()=>console.log("✅音频可以播放"));
+            bgAudio.addEventListener('error',(e)=>console.error("❌音频加载失败",e));
+
             try{
                 await bgAudio.play();
-                console.log("✅音频播放");
-            }catch(e){
-                console.log("❌音频播放被拦截",e);
-                alert("🔇没播放成功，可以再点一次画面");
+                console.log("✅播放成功");
+            }catch(err){
+                console.log("❌播放被拦截：",err);
+                alert("🔇浏览器安全限制，请**再点一次画面**播放音乐");
+            }
+
+            for(let i=0;i<PARTICLE_COUNT;i++){
+                particleActivated[i] = true;
+                particleActivationTime[i] = 0;
             }
         }
 
         const posAttr = particleSystem.geometry.attributes.position;
         const posArr = posAttr.array;
 
-        function easeInOut(t) {
-            return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-        }
-        function elasticOut(t) {
-            if (t <= 0) return 0;
-            if (t >= 1) return 1;
-            const c4 = (2 * Math.PI) / 3;
-            return Math.pow(2, -10 * t) * Math.sin((t - 0.075) * c4) + 1;
-        }
-
         function loop(time){
             requestAnimationFrame(loop);
             controls.update();
-
-            // 蓝环背景粒子轻微旋转
-            guideParticles.rotation.y += 0.004;
-
             if(animStarted){
-                const now = time / 1000;
-                const totalElapsed = now - animStartTs;
-
-                // 蓝环当前高度
-                const ringY = RISE_START_Y + (RISE_END_Y - RISE_START_Y) * Math.min(1, totalElapsed / RISE_DURATION);
-                guideRingGroup.position.y = ringY;
-                guideRing.rotation.z += 0.012;
-
+                const dt = (time - animStartTs)/1000;
                 let allDone = true;
-
-                for(let i = 0; i < PARTICLE_COUNT; i++){
-                    const tx = cakePositions[i][0];
-                    const ty = cakePositions[i][1];
-                    const tz = cakePositions[i][2];
-
-                    if(particleState[i] === 'waiting'){
-                        // 粒子是否进入蓝环影响带
-                        if (Math.abs(ty - ringY) < RISE_BAND) {
-                            particleState[i] = 'rising';
-                            particleStartRiseTime[i] = totalElapsed;
-                        }
-                        // 保持底部初始位置
-                        posArr[i*3]   = bottomScatterPositions[i][0];
-                        posArr[i*3+1] = bottomScatterPositions[i][1];
-                        posArr[i*3+2] = bottomScatterPositions[i][2];
-                        allDone = false;
-                    }
-                    else if(particleState[i] === 'rising'){
-                        allDone = false;
-                        const riseDur = 1.1 + Math.random() * 0.35;
-                        const t0 = totalElapsed - particleStartRiseTime[i];
-                        let p = Math.min(1, t0 / riseDur);
-                        p = easeInOut(p);
-
-                        // 从底部位置上升到目标Y，同时XY Z逐渐靠近蛋糕目标点
-                        const startX = bottomScatterPositions[i][0];
-                        const startY = bottomScatterPositions[i][1];
-                        const startZ = bottomScatterPositions[i][2];
-
-                        posArr[i*3]   = startX + (tx - startX) * p;
-                        posArr[i*3+1] = startY + (ty - startY) * p;
-                        posArr[i*3+2] = startZ + (tz - startZ) * p;
-
-                        if(p >= 1){
-                            particleState[i] = 'settling';
-                            particleStartRiseTime[i] = totalElapsed;
-                        }
-                    }
-                    else if(particleState[i] === 'settling'){
-                        allDone = false;
-                        const settleDur = 1.6 + Math.random() * 0.9;
-                        const t0 = totalElapsed - particleStartRiseTime[i];
-                        let p = Math.min(1, t0 / settleDur);
-                        p = elasticOut(p);
-
-                        // 落点前轻微摆动后归位
-                        const sway = Math.sin(p * Math.PI) * 0.035;
-                        posArr[i*3]   = tx + sway * (Math.random() - 0.5);
-                        posArr[i*3+1] = ty;
-                        posArr[i*3+2] = tz + sway * (Math.random() - 0.5);
-
-                        if(p >= 1){
-                            particleState[i] = 'done';
-                            posArr[i*3]   = tx;
-                            posArr[i*3+1] = ty;
-                            posArr[i*3+2] = tz;
-                        }
-                    }
-                    else{
-                        posArr[i*3]   = tx;
-                        posArr[i*3+1] = ty;
-                        posArr[i*3+2] = tz;
-                    }
+                for(let i=0;i<PARTICLE_COUNT;i++){
+                    if(!particleActivated[i]) continue;
+                    if(particleActivationTime[i]===0) particleActivationTime[i]=dt;
+                    const t0 = dt - particleActivationTime[i];
+                    const dur = particleSettleDuration[i];
+                    let p = Math.min(1, t0/dur);
+                    p = elasticEaseOut(p);
+                    const sx = scatterPositions[i][0];
+                    const sy = scatterPositions[i][1];
+                    const sz = scatterPositions[i][2];
+                    const cx = cakePositions[i][0];
+                    const cy = cakePositions[i][1];
+                    const cz = cakePositions[i][2];
+                    posArr[i*3]   = sx + (cx-sx)*p;
+                    posArr[i*3+1] = sy + (cy-sy)*p;
+                    posArr[i*3+2] = sz + (cz-sz)*p;
+                    if(p<1) allDone=false;
                 }
-
                 posAttr.needsUpdate = true;
-
-                // 蓝环完全通过后，再等所有粒子归位，最后显示文字
-                if(ringY >= RISE_END_Y && allDone){
+                if(allDone){
                     showBirthText();
                 }
             }
-
             effectComposer.render();
         }
-
         renderer.domElement.addEventListener("click", startAnim);
         renderer.domElement.addEventListener("touchstart", e=>{e.preventDefault();startAnim();});
         requestAnimationFrame(loop);
