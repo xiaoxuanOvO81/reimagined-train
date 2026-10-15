@@ -48,31 +48,15 @@
         import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-        // ========== MP3音频 ==========
-        let bgAudio = null;
-        let audioReady = false;
-        // 加?v=1强制绕过cdn旧缓存
-        const AUDIO_SRC = "https://cdn.jsdelivr.net/gh/xiaoxuanOvO81/reimagined-train@main/1792042036066.mp3?v=1";
-        const AUDIO_VOLUME = 0.75;
-        const AUDIO_LOOP = false;
-
-        function initAudio(){
-            bgAudio = new Audio(AUDIO_SRC);
-            bgAudio.volume = AUDIO_VOLUME;
-            bgAudio.loop = AUDIO_LOOP;
-            audioReady = true;
-        }
-        function playBgm(){
-            if(!audioReady) initAudio();
-            bgAudio.play().catch(e=>{
-                console.log("音频播放限制：",e);
-                alert("如无声音，请再次点击画面");
-            });
-        }
-
         const birthTextDom = document.getElementById("birthText");
         let animStarted = false;
         let animStartTs = 0;
+        let bgAudio = null;
+        const AUDIO_VOLUME = 0.75;
+        const AUDIO_LOOP = false;
+        // 随机戳，避开cdn缓存
+        const AUDIO_SRC = "https://cdn.jsdelivr.net/gh/xiaoxuanOvO81/reimagined-train@main/1792042036066.mp3?v=" + Math.random();
+
         function showBirthText(){
             birthTextDom.classList.add("show");
         }
@@ -445,12 +429,25 @@
 
         initParticleSystem();
 
-        function startAnim(){
+        async function startAnim(){
             if(animStarted) return;
             animStarted = true;
             animStartTs = performance.now();
-            playBgm();
-            // ✅修复：用正确变量名 particleActivated
+
+            // ✅关键：**在点击里面才新建Audio**，设置跨域
+            bgAudio = new Audio();
+            bgAudio.crossOrigin = "anonymous";
+            bgAudio.src = AUDIO_SRC;
+            bgAudio.volume = AUDIO_VOLUME;
+            bgAudio.loop = AUDIO_LOOP;
+
+            try{
+                await bgAudio.play();
+            }catch(err){
+                console.log("播放失败：",err);
+                alert("🔇浏览器限制音频，请**再点一次画面**播放音乐");
+            }
+
             for(let i=0;i<PARTICLE_COUNT;i++){
                 particleActivated[i] = true;
                 particleActivationTime[i] = 0;
