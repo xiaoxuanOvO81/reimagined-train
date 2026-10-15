@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>祝偏执生日快乐，身体健康，万事顺遂</title>
+    <title>3D粒子蛋糕 · 星辰</title>
     <style>
         body {
             margin: 0;
@@ -21,9 +21,8 @@
             font-weight:bold;
             z-index:10;
             pointer-events:none;
-            text-shadow: 0 0 14px #ffaa33,0 0 28px #ff8822;
             opacity:0;
-            transition: opacity 1.4s ease;
+            transition: opacity 2s ease;
         }
         .birthday-text.show{
             opacity:1;
@@ -50,18 +49,18 @@
 
         const birthTextDom = document.getElementById("birthText");
         let animStarted = false;
-        let animStartTs = 0;
+        let startTime = 0;
+
+        // 同域音频（mp3和html放同一目录）
         let bgAudio = null;
         const AUDIO_VOLUME = 0.75;
-        const AUDIO_LOOP = false;
-        // ✅同域相对路径！！mp3必须和index.html放在仓库同一级
         const AUDIO_SRC = "./1792042036066.mp3";
 
         function showBirthText(){
             birthTextDom.classList.add("show");
         }
 
-        // ========== Three.js 蛋糕逻辑 ==========
+        // 基础场景
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x06060f);
         scene.fog = new THREE.FogExp2(0x06060f, 0.0022);
@@ -76,10 +75,10 @@
         document.body.appendChild(renderer.domElement);
 
         const renderScene = new RenderPass(scene, camera);
-        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.7, 0.25, 0.15);
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.72, 0.28, 0.16);
         bloomPass.threshold = 0.12;
-        bloomPass.strength = 0.7;
-        bloomPass.radius = 0.4;
+        bloomPass.strength = 0.72;
+        bloomPass.radius = 0.42;
         const effectComposer = new EffectComposer(renderer);
         effectComposer.addPass(renderScene);
         effectComposer.addPass(bloomPass);
@@ -95,17 +94,9 @@
 
         const ambientLight = new THREE.AmbientLight(0x111122, 0.08);
         scene.add(ambientLight);
-        const backLight = new THREE.PointLight(0xffaa66, 0.15);
-        backLight.position.set(1.5, 2.5, 2);
-        scene.add(backLight);
-        const fillLight = new THREE.PointLight(0x6688ff, 0.1);
-        fillLight.position.set(-1, 1.8, 2.5);
-        scene.add(fillLight);
-        const topHighlight = new THREE.PointLight(0xaaccff, 0.05);
-        topHighlight.position.set(0, 2.0, 0.3);
-        scene.add(topHighlight);
 
-        const starCount = 2000;
+        // 背景星空
+        const starCount = 1600;
         const starGeo = new THREE.BufferGeometry();
         const starPos = [];
         for (let i = 0; i < starCount; i++) {
@@ -118,381 +109,149 @@
         const stars = new THREE.Points(starGeo, starMat);
         scene.add(stars);
 
-        const ringParticleCount = 1800;
-        const ringGeo = new THREE.BufferGeometry();
-        const ringPositions = [];
-        const ringColors = [];
-        for (let i = 0; i < ringParticleCount; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const radius = 1.45 + Math.random() * 0.35;
-            const y = -0.1 + Math.random() * 1.9;
-            const x = Math.cos(angle) * radius;
-            const z = Math.sin(angle) * radius;
-            ringPositions.push(x, y, z);
-            const hue = (angle + Math.random() * 0.5) % 1.0;
-            const rgb = new THREE.Color().setHSL(hue, 0.85, 0.55);
-            ringColors.push(rgb.r, rgb.g, rgb.b);
-        }
-        ringGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(ringPositions), 3));
-        ringGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(ringColors), 3));
-        const ringMat = new THREE.PointsMaterial({
-            size: 0.03,
-            vertexColors: true,
-            blending: THREE.AdditiveBlending,
-            transparent: true,
-            depthWrite: false
+        // ========== 蓝色引导环 ==========
+        const guideRingGroup = new THREE.Group();
+        const ringGeo = new THREE.TorusGeometry(1.42, 0.032, 24, 180);
+        const ringMat = new THREE.MeshBasicMaterial({
+            color:0x33bbff, transparent:true, opacity:0.92, blending:THREE.AdditiveBlending, depthWrite:false
         });
-        const ringParticles = new THREE.Points(ringGeo, ringMat);
-        scene.add(ringParticles);
+        const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+        ringMesh.rotation.x = Math.PI/2;
+        guideRingGroup.add(ringMesh);
+        guideRingGroup.position.y = -0.75;
+        scene.add(guideRingGroup);
 
-        const ambientRingGeo = new THREE.TorusGeometry(1.75, 0.015, 16, 120);
-        const ambientRingMat = new THREE.MeshBasicMaterial({
-            color: 0x335588,
-            transparent: true,
-            opacity: 0.25,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false
+        // ========== 粒子系统 ==========
+        const PARTICLE_COUNT = 8200;
+        const targetPos = [];
+        const startPos = [];
+        const moveDelay = [];   // 启动延迟：目标y越高，延迟越大 → 从底向上依次动
+        const colorList = [];
+
+        // 生成蛋糕目标点
+        function getCakeTarget(){
+            const r = Math.random();
+            let y,rad;
+            if(r < 0.32){
+                y = -0.36 + Math.random()*0.58;
+                rad = 0.94 + Math.random()*0.20;
+            }else if(r < 0.60){
+                y = 0.21 + Math.random()*0.43;
+                rad = 0.69 + Math.random()*0.18;
+            }else if(r < 0.84){
+                y = 0.63 + Math.random()*0.37;
+                rad = 0.49 + Math.random()*0.17;
+            }else{
+                y = 0.99 + Math.random()*0.53;
+                rad = 0.02 + Math.random()*0.13;
+            }
+            const ang = Math.PI*2*Math.random();
+            return [Math.cos(ang)*rad, y, Math.sin(ang)*rad];
+        }
+
+        for(let i=0;i<PARTICLE_COUNT;i++){
+            const [tx,ty,tz] = getCakeTarget();
+            targetPos.push(tx,ty,tz);
+            // 底部散开起点
+            const ang = Math.PI*2*Math.random();
+            const sr = 0.45 + Math.random()*1.8;
+            startPos.push(Math.cos(ang)*sr, -0.62 + Math.random()*0.35, Math.sin(ang)*sr);
+            // 核心：y越大，延迟越长 → **从下往上缓慢依次激活**
+            moveDelay.push( ty * 5.0 + Math.random() * 0.9 );
+
+            // 蛋糕配色
+            let R=0.93,G=0.63,B=0.39;
+            if(ty>1.32){ R=1.0; G=0.56; B=0.23; }
+            colorList.push(R,G,B);
+        }
+
+        const pGeo = new THREE.BufferGeometry();
+        const pPosArr = new Float32Array(PARTICLE_COUNT*3);
+        for(let i=0;i<PARTICLE_COUNT;i++){
+            pPosArr[i*3]   = startPos[i*3];
+            pPosArr[i*3+1] = startPos[i*3+1];
+            pPosArr[i*3+2] = startPos[i*3+2];
+        }
+        pGeo.setAttribute('position', new THREE.BufferAttribute(pPosArr,3));
+        pGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colorList),3));
+
+        const pMat = new THREE.PointsMaterial({
+            size:0.044,
+            vertexColors:true,
+            blending:THREE.AdditiveBlending,
+            transparent:true,
+            depthWrite:false
         });
-        const ambientRing = new THREE.Mesh(ambientRingGeo, ambientRingMat);
-        ambientRing.rotation.x = Math.PI / 2;
-        ambientRing.position.y = 0.5;
-        scene.add(ambientRing);
-        const ambientRing2Geo = new THREE.TorusGeometry(2.0, 0.01, 12, 100);
-        const ambientRing2Mat = new THREE.MeshBasicMaterial({
-            color: 0x553366,
-            transparent: true,
-            opacity: 0.2,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false
-        });
-        const ambientRing2 = new THREE.Mesh(ambientRing2Geo, ambientRing2Mat);
-        ambientRing2.rotation.x = Math.PI / 2;
-        ambientRing2.rotation.z = 0.3;
-        ambientRing2.position.y = 0.3;
-        scene.add(ambientRing2);
+        const particles = new THREE.Points(pGeo, pMat);
+        scene.add(particles);
+        const posAttr = particles.geometry.attributes.position;
+        const pa = posAttr.array;
 
-        const shootingStars = [];
-        const STAR_COUNT = 8;
-        for (let i = 0; i < STAR_COUNT; i++) {
-            const length = 0.15 + Math.random() * 0.25;
-            const pointsCount = 8;
-            const positionsArray = new Float32Array(pointsCount * 3);
-            const startX = (Math.random() - 0.5) * 10;
-            const startY = (Math.random() - 0.5) * 6 + 1;
-            const startZ = (Math.random() - 0.5) * 6 - 2;
-            const dir = new THREE.Vector3(
-                -0.8 + Math.random() * 0.4,
-                -0.6 + Math.random() * 0.3,
-                -0.3 + Math.random() * 0.2
-            ).normalize();
-            const geometry = new THREE.BufferGeometry();
-            const material = new THREE.LineBasicMaterial({
-                color: new THREE.Color().setHSL(0.6 + Math.random() * 0.15, 0.7, 0.7),
-                blending: THREE.AdditiveBlending,
-                transparent: true,
-                opacity: 0.3 + Math.random() * 0.4,
-                depthWrite: false
-            });
-            for (let j = 0; j < pointsCount; j++) {
-                const t = j / (pointsCount - 1);
-                positionsArray[j * 3] = startX + dir.x * t * length;
-                positionsArray[j * 3 + 1] = startY + dir.y * t * length;
-                positionsArray[j * 3 + 2] = startZ + dir.z * t * length;
-            }
-            geometry.setAttribute('position', new THREE.BufferAttribute(positionsArray, 3));
-            const line = new THREE.Line(geometry, material);
-            scene.add(line);
-            shootingStars.push({ line, dir, speed: 0.008 + Math.random() * 0.015, length, startX, startY, startZ, pointsCount, positionsArray });
+        // 平缓缓动，无夸张弹跳，保证移动端稳定
+        function easeSlow(t){
+            return t < 0.5 ? 2*t*t : -1 + t*(4-2*t);
         }
 
-        const PARTICLE_COUNT = 9800;
-        let particleSystem = null;
-        let cakePositions = [];
-        let scatterPositions = [];
-        let particleActivated = [];
-        let particleActivationTime = [];
-        let particleSettleDuration = [];
-
-        function addDiskPoints(count, y, rMin, rMax, biasCenter = 0.3) {
-            const pts = [];
-            for (let i = 0; i < count; i++) {
-                let r;
-                if (Math.random() < biasCenter) {
-                    r = rMin + Math.random() * (rMax - rMin) * 0.5;
-                } else {
-                    r = rMin + Math.random() * (rMax - rMin);
-                }
-                const angle = Math.random() * Math.PI * 2;
-                const x = Math.cos(angle) * r;
-                const z = Math.sin(angle) * r;
-                pts.push(new THREE.Vector3(x, y, z));
-            }
-            return pts;
-        }
-        function addSolidBase(count, yStart, yEnd, rMin, rMax) {
-            const pts = [];
-            for (let i = 0; i < count; i++) {
-                const y = yStart + Math.random() * (yEnd - yStart);
-                let r = rMin + Math.pow(Math.random(), 1.2) * (rMax - rMin);
-                const angle = Math.random() * Math.PI * 2;
-                const x = Math.cos(angle) * r;
-                const z = Math.sin(angle) * r;
-                pts.push(new THREE.Vector3(x, y, z));
-            }
-            return pts;
-        }
-        function generateCakePositions() {
-            const positions = [];
-            const bottomRMin = 0.96, bottomRMax = 1.14;
-            const bottomY0 = -0.28, bottomY1 = 0.18;
-            const midRMin = 0.73, midRMax = 0.86;
-            const midY0 = 0.20, midY1 = 0.60;
-            const topRMin = 0.52, topRMax = 0.65;
-            const topY0 = 0.62, topY1 = 0.96;
-            const candleR = 0.11;
-            const candleY0 = 0.98, candleY1 = 1.50;
-            const flameYCenter = 1.54;
-            function addCylinderPoints(count, yMin, yMax, rMin, rMax, surfaceBias = 0.65) {
-                const pts = [];
-                for (let i = 0; i < count; i++) {
-                    let r;
-                    if (Math.random() < surfaceBias) {
-                        r = rMin + Math.random() * (rMax - rMin);
-                    } else {
-                        r = rMin + Math.pow(Math.random(), 1.5) * (rMax - rMin);
-                    }
-                    const angle = Math.random() * Math.PI * 2;
-                    const y = yMin + Math.random() * (yMax - yMin);
-                    const x = Math.cos(angle) * r;
-                    const z = Math.sin(angle) * r;
-                    pts.push(new THREE.Vector3(x, y, z));
-                }
-                return pts;
-            }
-            const bottomCnt = Math.floor(PARTICLE_COUNT * 0.18);
-            const midCnt = Math.floor(PARTICLE_COUNT * 0.14);
-            const topCnt = Math.floor(PARTICLE_COUNT * 0.10);
-            const candleCnt = Math.floor(PARTICLE_COUNT * 0.08);
-            const solidBaseCnt = 480;
-            const bottomDiskCnt = 300;
-            const bottomTopDiskCnt = 280;
-            const midTopDiskCnt = 240;
-            const topTopDiskCnt = 220;
-            const candleTopDiskCnt = 90;
-            let decorCnt = PARTICLE_COUNT - bottomCnt - midCnt - topCnt - candleCnt - solidBaseCnt -
-                bottomDiskCnt - bottomTopDiskCnt - midTopDiskCnt - topTopDiskCnt - candleTopDiskCnt;
-            if (decorCnt < 0) decorCnt = 280;
-            const bottomPts = addCylinderPoints(bottomCnt, bottomY0, bottomY1, bottomRMin, bottomRMax, 0.65);
-            const midPts = addCylinderPoints(midCnt, midY0, midY1, midRMin, midRMax, 0.65);
-            const topPts = addCylinderPoints(topCnt, topY0, topY1, topRMin, topRMax, 0.7);
-            const candlePts = [];
-            for (let i = 0; i < candleCnt; i++) {
-                const r = candleR * Math.sqrt(Math.random());
-                const angle = Math.random() * Math.PI * 2;
-                const y = candleY0 + Math.random() * (candleY1 - candleY0);
-                const x = Math.cos(angle) * r;
-                const z = Math.sin(angle) * r;
-                candlePts.push(new THREE.Vector3(x, y, z));
-            }
-            const solidBase = addSolidBase(solidBaseCnt, -0.45, -0.26, bottomRMin - 0.05, bottomRMax + 0.03);
-            const bottomDisk = addDiskPoints(bottomDiskCnt, bottomY0 - 0.02, bottomRMin, bottomRMax, 0.4);
-            const bottomTopDisk = addDiskPoints(bottomTopDiskCnt, bottomY1, bottomRMin, bottomRMax, 0.5);
-            const midTopDisk = addDiskPoints(midTopDiskCnt, midY1, midRMin, midRMax, 0.5);
-            const topTopDisk = addDiskPoints(topTopDiskCnt, topY1, topRMin, topRMax, 0.5);
-            const candleTopDisk = addDiskPoints(candleTopDiskCnt, candleY1, 0, candleR, 0.6);
-            const decorPts = [];
-            const edgeSteps = Math.floor(decorCnt * 0.45);
-            for (let i = 0; i < edgeSteps; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                let r, y;
-                const layer = Math.random();
-                if (layer < 0.4) {
-                    r = bottomRMax + 0.05;
-                    y = bottomY1 + Math.sin(angle * 6) * 0.045;
-                } else if (layer < 0.7) {
-                    r = midRMax + 0.05;
-                    y = midY1 + Math.sin(angle * 7) * 0.04;
-                } else {
-                    r = topRMax + 0.05;
-                    y = topY1 + Math.sin(angle * 8) * 0.04;
-                }
-                const x = Math.cos(angle) * r;
-                const z = Math.sin(angle) * r;
-                decorPts.push(new THREE.Vector3(x, y, z));
-            }
-            const flameCnt = 240;
-            for (let i = 0; i < flameCnt; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                const rad = 0.11 * Math.random();
-                const x = Math.cos(angle) * rad;
-                const z = Math.sin(angle) * rad;
-                const y = flameYCenter + Math.random() * 0.24;
-                decorPts.push(new THREE.Vector3(x, y, z));
-            }
-            while (decorPts.length < decorCnt) {
-                const angle = Math.random() * Math.PI * 2;
-                const rad = 0.65 + Math.random() * 0.7;
-                const y = 0.15 + Math.random() * 1.45;
-                const x = Math.cos(angle) * rad;
-                const z = Math.sin(angle) * rad;
-                decorPts.push(new THREE.Vector3(x, y, z));
-            }
-            const all = [
-                ...bottomPts, ...midPts, ...topPts, ...candlePts,
-                ...solidBase, ...bottomDisk, ...bottomTopDisk, ...midTopDisk, ...topTopDisk, ...candleTopDisk,
-                ...decorPts
-            ];
-            while (all.length < PARTICLE_COUNT) all.push(new THREE.Vector3(0, 0.8, 0));
-            return all.slice(0, PARTICLE_COUNT).map(v => [v.x, v.y, v.z]);
-        }
-        function generateScatterPositions() {
-            const scatters = [];
-            const centerY = 0.6;
-            const spiralArmCount = 4;
-            const spiralTotalParticles = Math.floor(PARTICLE_COUNT * 0.32);
-            const particlesPerArm = Math.floor(spiralTotalParticles / spiralArmCount);
-            const sphereParticleCount = PARTICLE_COUNT - (particlesPerArm * spiralArmCount);
-            for (let arm = 0; arm < spiralArmCount; arm++) {
-                const baseAngle = (arm / spiralArmCount) * Math.PI * 2;
-                for (let i = 0; i < particlesPerArm; i++) {
-                    const t = i / particlesPerArm;
-                    const angle = baseAngle + t * 3.2 * Math.PI;
-                    const r = 1.3 + t * 3.2;
-                    const y = centerY + (t - 0.45) * 3.8;
-                    const x = Math.cos(angle) * r + (Math.random() - 0.5) * 0.5;
-                    const z = Math.sin(angle) * r + (Math.random() - 0.5) * 0.35;
-                    scatters.push([x, y, z]);
-                }
-            }
-            for (let i = 0; i < sphereParticleCount; i++) {
-                const phi = Math.acos(2 * Math.random() - 1);
-                const theta = Math.random() * Math.PI * 2;
-                const r = 1.8 + Math.pow(Math.random(), 0.55) * 3.5;
-                const x = Math.sin(phi) * Math.cos(theta) * r;
-                const y = centerY + Math.sin(phi) * Math.sin(theta) * r;
-                const z = Math.cos(phi) * r;
-                scatters.push([x, y, z]);
-            }
-            return scatters.slice(0, PARTICLE_COUNT);
-        }
-        function generateCakeColors(positions) {
-            const colors = [];
-            for (let i = 0; i < positions.length; i++) {
-                const y = positions[i][1];
-                let r, g, b;
-                if (y < -0.3) { r = 0.6 + Math.random() * 0.2; g = 0.38 + Math.random() * 0.2; b = 0.22 + Math.random() * 0.2; }
-                else if (y < -0.2) { r = 0.7 + Math.random() * 0.2; g = 0.45 + Math.random() * 0.22; b = 0.28 + Math.random() * 0.2; }
-                else if (y < 0.2) { r = 0.8 + Math.random() * 0.15; g = 0.5 + Math.random() * 0.22; b = 0.32 + Math.random() * 0.18; }
-                else if (y < 0.65) { r = 0.9 + Math.random() * 0.1; g = 0.65 + Math.random() * 0.18; b = 0.42 + Math.random() * 0.18; }
-                else if (y < 1.0) { r = 0.95; g = 0.75 + Math.random() * 0.15; b = 0.5 + Math.random() * 0.2; }
-                else { r = 0.95; g = 0.65 + Math.random() * 0.25; b = 0.38 + Math.random() * 0.25; }
-                if (y > 1.52) { r = 1.0; g = 0.45 + Math.random() * 0.45; b = 0.18; }
-                colors.push(r, g, b);
-            }
-            return colors;
-        }
-        function elasticEaseOut(t) {
-            if (t <= 0) return 0;
-            if (t >= 1) return 1;
-            const c4 = (2 * Math.PI) / 3;
-            return Math.pow(2, -10 * t) * Math.sin((t - 0.075) * c4) + 1;
-        }
-        function initParticleSystem() {
-            cakePositions = generateCakePositions();
-            scatterPositions = generateScatterPositions();
-            const initColors = generateCakeColors(cakePositions);
-            const initPosArray = new Float32Array(PARTICLE_COUNT * 3);
-            for (let i = 0; i < PARTICLE_COUNT; i++) {
-                initPosArray[i * 3] = scatterPositions[i][0];
-                initPosArray[i * 3 + 1] = scatterPositions[i][1];
-                initPosArray[i * 3 + 2] = scatterPositions[i][2];
-            }
-            particleActivated = new Array(PARTICLE_COUNT).fill(false);
-            particleActivationTime = new Array(PARTICLE_COUNT).fill(0);
-            particleSettleDuration = new Array(PARTICLE_COUNT).fill(0);
-            for (let i = 0; i < PARTICLE_COUNT; i++) {
-                particleSettleDuration[i] = 1.8 + Math.random() * 2.0;
-            }
-            const geometry = new THREE.BufferGeometry();
-            geometry.setAttribute('position', new THREE.BufferAttribute(initPosArray, 3));
-            geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(initColors), 3));
-            const particleMat = new THREE.PointsMaterial({
-                size: 0.038,
-                vertexColors: true,
-                blending: THREE.AdditiveBlending,
-                transparent: true,
-                depthWrite: false
-            });
-            particleSystem = new THREE.Points(geometry, particleMat);
-            scene.add(particleSystem);
-        }
-
-        initParticleSystem();
-
-        async function startAnim(){
+        function startAnim(){
             if(animStarted) return;
             animStarted = true;
-            animStartTs = performance.now();
-
-            bgAudio = new Audio();
-            // 同域资源不需要crossOrigin！
-            bgAudio.src = AUDIO_SRC;
+            startTime = performance.now() / 1000;
+            console.log("✅动画开始");
+            bgAudio = new Audio(AUDIO_SRC);
             bgAudio.volume = AUDIO_VOLUME;
-            bgAudio.loop = AUDIO_LOOP;
-
-            bgAudio.addEventListener('canplay',()=>console.log("✅音频可以播放"));
-            bgAudio.addEventListener('error',(e)=>console.error("❌音频加载失败",e));
-
-            try{
-                await bgAudio.play();
-                console.log("✅播放成功");
-            }catch(err){
-                console.log("❌播放被拦截：",err);
-                alert("🔇浏览器安全限制，请**再点一次画面**播放音乐");
-            }
-
-            for(let i=0;i<PARTICLE_COUNT;i++){
-                particleActivated[i] = true;
-                particleActivationTime[i] = 0;
-            }
+            bgAudio.play().catch(err=>{
+                console.log("音频播放失败",err);
+                alert("🔇音频未播放，再次点击画面试试");
+            });
         }
 
-        const posAttr = particleSystem.geometry.attributes.position;
-        const posArr = posAttr.array;
-
-        function loop(time){
+        function loop(timeMs){
             requestAnimationFrame(loop);
             controls.update();
+            ringMesh.rotation.z += 0.009;
+
             if(animStarted){
-                const dt = (time - animStartTs)/1000;
-                let allDone = true;
+                const nowSec = timeMs / 1000 - startTime;
+                // 蓝圈非常缓慢上升，总时长 12秒
+                const ringTotalTime = 12.0;
+                const ringY = -0.75 + Math.min(1.0, nowSec / ringTotalTime) * 2.55;
+                guideRingGroup.position.y = ringY;
+
+                // 每个粒子：到了自己的延迟才开始非常慢地向目标汇聚
+                const flyDuration = 3.8; // 每个粒子自身飞行时长，值越大越慢
                 for(let i=0;i<PARTICLE_COUNT;i++){
-                    if(!particleActivated[i]) continue;
-                    if(particleActivationTime[i]===0) particleActivationTime[i]=dt;
-                    const t0 = dt - particleActivationTime[i];
-                    const dur = particleSettleDuration[i];
-                    let p = Math.min(1, t0/dur);
-                    p = elasticEaseOut(p);
-                    const sx = scatterPositions[i][0];
-                    const sy = scatterPositions[i][1];
-                    const sz = scatterPositions[i][2];
-                    const cx = cakePositions[i][0];
-                    const cy = cakePositions[i][1];
-                    const cz = cakePositions[i][2];
-                    posArr[i*3]   = sx + (cx-sx)*p;
-                    posArr[i*3+1] = sy + (cy-sy)*p;
-                    posArr[i*3+2] = sz + (cz-sz)*p;
-                    if(p<1) allDone=false;
+                    const d = moveDelay[i];
+                    if(nowSec < d){
+                        // 还没轮到，留在底部
+                        pa[i*3]   = startPos[i*3];
+                        pa[i*3+1] = startPos[i*3+1];
+                        pa[i*3+2] = startPos[i*3+2];
+                    }else{
+                        const dt = nowSec - d;
+                        let p = Math.min(1.0, dt / flyDuration);
+                        p = easeSlow(p);
+                        pa[i*3]   = startPos[i*3]   + (targetPos[i*3]   - startPos[i*3]) * p;
+                        pa[i*3+1] = startPos[i*3+1] + (targetPos[i*3+1] - startPos[i*3+1]) * p;
+                        pa[i*3+2] = startPos[i*3+2] + (targetPos[i*3+2] - startPos[i*3+2]) * p;
+                    }
                 }
                 posAttr.needsUpdate = true;
-                if(allDone){
+
+                // 全部基本汇聚完再弹出文字
+                if(nowSec > 16.5){
                     showBirthText();
                 }
             }
+
             effectComposer.render();
         }
+
         renderer.domElement.addEventListener("click", startAnim);
-        renderer.domElement.addEventListener("touchstart", e=>{e.preventDefault();startAnim();});
+        renderer.domElement.addEventListener("touchstart", e=>{
+            e.preventDefault();
+            startAnim();
+        });
+
         requestAnimationFrame(loop);
     </script>
 </body>
