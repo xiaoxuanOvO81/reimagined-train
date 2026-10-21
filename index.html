@@ -28,9 +28,21 @@
         .birthday-text.show{
             opacity:1;
         }
+        .tip-text{
+            position: fixed;
+            top: 12vh;
+            width:100%;
+            text-align:center;
+            font-size: 18px;
+            color:#fff8bb;
+            z-index:9;
+            pointer-events:none;
+            text-shadow: 0 0 8px #ff9922;
+        }
     </style>
 </head>
 <body>
+    <div class="tip-text" id="tipText">点击画面任意位置开始 ✨</div>
     <div class="birthday-text" id="birthText">祝偏执生日快乐</div>
 
     <script type="importmap">
@@ -49,12 +61,13 @@
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
         const birthTextDom = document.getElementById("birthText");
+        const tipTextDom = document.getElementById("tipText");
         let animStarted = false;
         let animStartTs = 0;
-        let bgAudio = null;
+        let bgAudio = new Audio();
         const AUDIO_VOLUME = 0.80;
         const AUDIO_LOOP = true;
-        // 同域相对路径！！mp3必须和index.html放在仓库同一级
+        // mp3 和 index.html 同目录
         const AUDIO_SRC = "./1792042036066.mp3";
 
         function showBirthText(){
@@ -432,23 +445,23 @@
         async function startAnim(){
             if(animStarted) return;
             animStarted = true;
+            tipTextDom.style.opacity = "0";
             animStartTs = performance.now();
 
-            bgAudio = new Audio();
-            // 同域资源不需要crossOrigin！
             bgAudio.src = AUDIO_SRC;
             bgAudio.volume = AUDIO_VOLUME;
             bgAudio.loop = AUDIO_LOOP;
+            bgAudio.preload = "auto";
 
-            bgAudio.addEventListener('canplay',()=>console.log("✅音频可以播放"));
-            bgAudio.addEventListener('error',(e)=>console.error("❌音频加载失败",e));
+            bgAudio.addEventListener('error',(e)=>{
+                console.error("❌音频加载失败！检查mp3文件名和存放位置",e);
+            });
 
             try{
                 await bgAudio.play();
-                console.log("✅播放成功");
+                console.log("✅音频播放成功");
             }catch(err){
-                console.log("❌播放被拦截：",err);
-                alert("🔇浏览器安全限制，请**再点一次画面**播放音乐");
+                console.warn("🔇浏览器拦截播放，文件存在但需要再次交互：",err);
             }
 
             for(let i=0;i<PARTICLE_COUNT;i++){
@@ -492,7 +505,10 @@
             effectComposer.render();
         }
         renderer.domElement.addEventListener("click", startAnim);
-        renderer.domElement.addEventListener("touchstart", e=>{e.preventDefault();startAnim();});
+        renderer.domElement.addEventListener("touchstart", e=>{
+            e.preventDefault();
+            startAnim();
+        });
         requestAnimationFrame(loop);
     </script>
 </body>
