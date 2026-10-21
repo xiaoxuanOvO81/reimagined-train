@@ -64,11 +64,17 @@
         const tipTextDom = document.getElementById("tipText");
         let animStarted = false;
         let animStartTs = 0;
-        let bgAudio = new Audio();
+
+        // ==========音频配置 适配Edge重点==========
+        const bgAudio = new Audio();
         const AUDIO_VOLUME = 0.80;
         const AUDIO_LOOP = true;
-        // mp3 和 index.html 同目录
+        // ⚠️ mp3文件和index.html放在仓库同一级，文件名大小写完全匹配
         const AUDIO_SRC = "./1792042036066.mp3";
+        bgAudio.src = AUDIO_SRC;
+        bgAudio.volume = AUDIO_VOLUME;
+        bgAudio.loop = AUDIO_LOOP;
+        bgAudio.preload = 'metadata';
 
         function showBirthText(){
             birthTextDom.classList.add("show");
@@ -445,23 +451,27 @@
         async function startAnim(){
             if(animStarted) return;
             animStarted = true;
-            tipTextDom.style.opacity = "0";
             animStartTs = performance.now();
+            tipTextDom.style.display = 'none';
 
-            bgAudio.src = AUDIO_SRC;
-            bgAudio.volume = AUDIO_VOLUME;
-            bgAudio.loop = AUDIO_LOOP;
-            bgAudio.preload = "auto";
+            let playPromise;
+            try {
+                playPromise = bgAudio.play();
+            } catch (e) {
+                console.error("同步play捕获异常",e);
+            }
 
-            bgAudio.addEventListener('error',(e)=>{
-                console.error("❌音频加载失败！检查mp3文件名和存放位置",e);
-            });
-
-            try{
-                await bgAudio.play();
-                console.log("✅音频播放成功");
-            }catch(err){
-                console.warn("🔇浏览器拦截播放，文件存在但需要再次交互：",err);
+            if(playPromise){
+                try{
+                    await playPromise;
+                    console.log("✅音频播放成功");
+                }catch(err){
+                    console.error("❌音频播放被拦截",err);
+                    tipTextDom.innerText = "🔇播放被阻止，请再次点击画面";
+                    tipTextDom.style.display = 'block';
+                    animStarted = false;
+                    return;
+                }
             }
 
             for(let i=0;i<PARTICLE_COUNT;i++){
@@ -504,11 +514,16 @@
             }
             effectComposer.render();
         }
-        renderer.domElement.addEventListener("click", startAnim);
+
+        // 注意：不要把async直接作为事件handler
+        renderer.domElement.addEventListener("click", ()=>{
+            startAnim();
+        });
         renderer.domElement.addEventListener("touchstart", e=>{
             e.preventDefault();
             startAnim();
         });
+
         requestAnimationFrame(loop);
     </script>
 </body>
